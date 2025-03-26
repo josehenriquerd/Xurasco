@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Churrasco</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+            background-color: #f8f8f8;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        input, select {
+            margin: 10px;
+            padding: 8px;
+            width: 80%;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #resultado {
+            margin-top: 20px;
+            font-size: 16px;
+            text-align: left;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 10px; }
+            input, select { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Calculadora de Churrasco</h1>
+        <p>Planeje seu churrasco completo!</p>
+
+        <label for="tipo">Tipo de Churrasco:</label>
+        <select id="tipo">
+            <option value="completo">Churrasco Completo</option>
+            <option value="hamburguer">Hambúrguer</option>
+            <option value="pao_alho">Pão de Alho</option>
+        </select><br>
+
+        <label for="carne">Tipos de Carne:</label>
+        <select id="carne" multiple>
+            <option value="picanha">Picanha</option>
+            <option value="frango">Frango</option>
+            <option value="linguica">Linguiça</option>
+            <option value="costela">Costela</option>
+        </select><br>
+
+        <label for="adultos">Adultos:</label>
+        <input type="number" id="adultos" min="0"><br>
+
+        <label for="criancas">Crianças:</label>
+        <input type="number" id="criancas" min="0"><br>
+
+        <label for="acompanhamentos">Acompanhamentos:</label>
+        <select id="acompanhamentos" multiple>
+            <option value="arroz">Arroz</option>
+            <option value="farofa">Farofa</option>
+            <option value="vinagrete">Vinagrete</option>
+            <option value="pao_alho">Pão de Alho</option>
+        </select><br>
+
+        <label for="modo_festa">Modo Festa (20+ pessoas):</label>
+        <input type="checkbox" id="modo_festa"><br>
+
+        <button id="calcularBtn" onclick="calcularChurrasco()">Calcular</button>
+        <button id="compartilharBtn" onclick="compartilharPlanejamento()" style="display:none;">Compartilhar</button>
+        <div id="resultado"></div>
+    </div>
+
+    <script>
+        function getSelectedOptions(selectId) {
+            const select = document.getElementById(selectId);
+            return Array.from(select.selectedOptions).map(option => option.value);
+        }
+
+        function calcularChurrasco() {
+            const adultosInput = document.getElementById('adultos').value;
+            const criancasInput = document.getElementById('criancas').value;
+            const tipo = document.getElementById('tipo').value;
+            const carnes = getSelectedOptions('carne');
+            const acompanhamentos = getSelectedOptions('acompanhamentos');
+            const modoFesta = document.getElementById('modo_festa').checked;
+            const calcularBtn = document.getElementById('calcularBtn');
+
+            if (!adultosInput || !criancasInput || (!carnes.length && tipo !== 'completo')) {
+                document.getElementById('resultado').innerHTML = 'Preencha todos os campos obrigatórios!';
+                return;
+            }
+
+            let adultos = parseInt(adultosInput);
+            let criancas = parseInt(criancasInput);
+            if (modoFesta) {
+                adultos = 20;
+                criancas = 5;
+                document.getElementById('adultos').value = adultos;
+                document.getElementById('criancas').value = criancas;
+            }
+
+            calcularBtn.disabled = true;
+            fetch('http://127.0.0.1:5000/calcular', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adultos, criancas, tipo, carnes, acompanhamentos, modo_festa })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+
+                // Formatação da lista de compras
+                const listaCompras = `
+                    <strong>Lista de Compras:</strong><br>
+                    <u>Carnes:</u><br>${Object.entries(data.lista_compras.carnes).map(([k, v]) => ` - ${k}: ${v}`).join('<br>')}<br>
+                    <u>Bebidas:</u><br>
+                    - Cerveja: ${data.bebidas.cerveja_latas} latas<br>
+                    - Refrigerante: ${data.bebidas.refrigerante_litros.toFixed(1)} L<br>
+                    - Água: ${data.bebidas.agua_litros.toFixed(1)} L<br>
+                    <u>Acompanhamentos:</u><br>${Object.entries(data.acompanhamentos).map(([k, v]) => ` - ${k}: ${v.toFixed(2)} kg`).join('<br>') || ' - Nenhum selecionado'}<br>
+                    <u>Carvão:</u><br> - ${data.carvao_kg.toFixed(2)} kg
+                `;
+
+                document.getElementById('resultado').innerHTML = `
+                    <p><strong>Carnes:</strong> ${data.total_carne_kg.toFixed(2)} kg (R$ ${data.preco_carne.toFixed(2)})</p>
+                    <p><strong>Bebidas:</strong> ${data.bebidas.cerveja_latas} latas de cerveja, ${data.bebidas.refrigerante_litros.toFixed(1)}L de refrigerante, ${data.bebidas.agua_litros.toFixed(1)}L de água (R$ ${data.bebidas.preco_bebidas.toFixed(2)})</p>
+                    <p><strong>Acompanhamentos:</strong> ${Object.entries(data.acompanhamentos).map(([k, v]) => `${k}: ${v.toFixed(2)} kg`).join(', ') || 'Nenhum'} (R$ ${data.preco_acompanhamentos.toFixed(2)})</p>
+                    <p><strong>Carvão:</strong> ${data.carvao_kg.toFixed(2)} kg (R$ ${data.preco_carvao.toFixed(2)})</p>
+                    <p><strong>Tempo estimado:</strong> ${data.tempo_preparo} minutos</p>
+                    <p><strong>Preço Total:</strong> R$ ${data.preco_total.toFixed(2)}</p>
+                    <p>${listaCompras}</p>
+                `;
+                document.getElementById('compartilharBtn').style.display = 'inline';
+            })
+            .catch(error => {
+                document.getElementById('resultado').innerHTML = `Erro: ${error.message}`;
+            })
+            .finally(() => calcularBtn.disabled = false);
+        }
+
+        function compartilharPlanejamento() {
+            const resultado = document.getElementById('resultado').innerText;
+            const blob = new Blob([resultado], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Planejamento_Churrasco.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
